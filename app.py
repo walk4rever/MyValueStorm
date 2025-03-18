@@ -14,6 +14,7 @@ from knowledge_storm import (
 )
 from knowledge_storm.lm import LitellmModel
 from knowledge_storm.rm import TavilySearchRM
+from knowledge_storm.result_manager import ResultManager
 
 # Set page configuration
 st.set_page_config(
@@ -31,6 +32,21 @@ topic = st.sidebar.text_input("Research Topic", "")
 
 # Output directory
 output_dir = st.sidebar.text_input("Output Directory", "./results/streamlit")
+
+# Storage options
+default_storage_index = 1 if os.environ.get("S3_ENABLED", "").lower() == "true" else 0
+storage_option = st.sidebar.radio(
+    "Storage Option",
+    ["Local Storage", "AWS S3"],
+    index=default_storage_index
+)
+
+# S3 bucket name (only shown if S3 is selected)
+s3_bucket = None
+s3_region = None
+if storage_option == "AWS S3":
+    s3_bucket = st.sidebar.text_input("S3 Bucket Name", os.environ.get("S3_BUCKET", "mystorm-results"))
+    s3_region = st.sidebar.text_input("AWS Region", os.environ.get("AWS_REGION", "us-east-1"))
 
 # Model selection
 model_provider = st.sidebar.selectbox(
@@ -136,6 +152,11 @@ def display_results(output_path):
     direct_outline_path = os.path.join(output_path, "direct_gen_outline.txt")
     storm_outline_path = os.path.join(output_path, "storm_gen_outline.txt")
     
+    # Debug information
+    st.write(f"Looking for files in: {output_path}")
+    st.write(f"Direct outline exists: {os.path.exists(direct_outline_path)}")
+    st.write(f"STORM outline exists: {os.path.exists(storm_outline_path)}")
+    
     col1, col2 = st.columns(2)
     
     with col1:
@@ -147,8 +168,13 @@ def display_results(output_path):
     with col2:
         if os.path.exists(storm_outline_path):
             st.subheader("STORM Generated Outline")
-            with open(storm_outline_path, 'r') as f:
-                st.text_area("", f.read(), height=300)
+            try:
+                with open(storm_outline_path, 'r') as f:
+                    outline_content = f.read()
+                    st.text_area("", outline_content, height=300)
+            except Exception as e:
+                st.error(f"Error reading STORM outline: {str(e)}")
+                st.info(f"File exists: {os.path.exists(storm_outline_path)}, Size: {os.path.getsize(storm_outline_path) if os.path.exists(storm_outline_path) else 'N/A'}")
     
     # Check for articles
     article_path = os.path.join(output_path, "storm_gen_article.txt")
@@ -208,6 +234,20 @@ if st.sidebar.button("Start STORM Process"):
             if not tavily_api_key:
                 status.error("TAVILY_API_KEY environment variable not found. Please set it before running.")
                 st.stop()
+            
+            # Initialize result manager
+            use_s3 = (storage_option == "AWS S3")
+            result_manager = ResultManager(
+                base_dir=output_dir,
+                use_s3=use_s3,
+                s3_bucket=s3_bucket,
+                s3_region=s3_region
+            )
+            
+            # Format topic for directory name
+            topic_dir_name = topic.lower().replace(" ", "_").replace("/", "_")
+            full_output_path = result_manager.get_topic_dir(topic)
+            os.makedirs(full_output_path, exist_ok=True)
             
             # Configure STORM
             lm_configs = STORMWikiLMConfigs()
@@ -355,6 +395,19 @@ if st.sidebar.button("Start STORM Process"):
             
             # Update progress
             progress_bar.progress(100)
+            
+            # Upload results to S3 if enabled
+            if use_s3:
+                status.info("Uploading results to S3...")
+                try:
+                    if result_manager.upload_topic_results(topic):
+                        status.success("Results uploaded to S3 successfully!")
+                    else:
+                        status.error("Failed to upload results to S3")
+                except Exception as e:
+                    status.error(f"Error uploading to S3: {str(e)}")
+                    st.exception(e)
+            
             status.success("STORM process completed successfully!")
             
             # Display results
@@ -369,15 +422,58 @@ if st.sidebar.button("Load Previous Results"):
     if not topic:
         st.error("Please enter a topic to load its results")
     else:
+        # Initialize result manager with the same settings
+        use_s3 = (storage_option == "AWS S3")
+        result_manager = ResultManager(
+            base_dir=output_dir,
+            use_s3=use_s3,
+            s3_bucket=s3_bucket,
+            s3_region=s3_region
+        )
+        
         topic_dir_name = topic.lower().replace(" ", "_").replace("/", "_")
-        full_output_path = os.path.join(output_dir, topic_dir_name)
+        full_output_path = result_manager.get_topic_dir(topic)
+        
+        # If using S3, try to download the results first
+        if use_s3:
+            status = st.empty()
+            status.info(f"Downloading results for topic: {topic} from S3...")
+            if result_manager.download_topic_results(topic):
+                status.success("Results downloaded from S3 successfully!")
+            else:
+                status.warning("Could not find results in S3 or download failed")
         
         if os.path.exists(full_output_path):
             display_results(full_output_path)
         else:
             st.error(f"No results found for topic: {topic}")
 
+# Add a section to list available topics
+if st.sidebar.button("List Available Topics"):
+    # Initialize result manager with the same settings
+    use_s3 = (storage_option == "AWS S3")
+    result_manager = ResultManager(
+        base_dir=output_dir,
+        use_s3=use_s3,
+        s3_bucket=s3_bucket,
+        s3_region=s3_region
+    )
+    
+    topics = result_manager.list_topics()
+    if topics:
+        st.sidebar.subheader("Available Topics:")
+        for topic in topics:
+            st.sidebar.markdown(f"- {topic.replace('_', ' ').title()}")
+    else:
+        st.sidebar.info("No topics found")
+
 # Add a section to monitor progress
 st.sidebar.markdown("---")
 st.sidebar.markdown("STORM: STructured Outline-based Research Method")
 st.sidebar.markdown("Built with Streamlit")
+
+# Add S3 storage information if enabled
+if storage_option == "AWS S3":
+    st.sidebar.markdown("---")
+    st.sidebar.markdown(f"**S3 Storage:** {s3_bucket}")
+    st.sidebar.markdown(f"**Region:** {s3_region}")

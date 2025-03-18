@@ -1,0 +1,375 @@
+/* Enhanced CSS for STORM Research Assistant */
+
+/* Main container styling */
+.main .block-container {
+    padding-top: 1.5rem;
+    padding-bottom: 1.5rem;
+    max-width: 1200px;
+}
+
+/* Sidebar styling */
+.sidebar .sidebar-content {
+    background-color: #f0f4f8;
+    border-right: 1px solid #e0e4e8;
+}
+
+/* Headers */
+h1 {
+    color: #0f2b5b;
+    margin-bottom: 1.5rem;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+}
+
+h2 {
+    color: #1a4789;
+    margin-top: 2rem;
+    margin-bottom: 1rem;
+    font-weight: 600;
+}
+
+h3 {
+    color: #2563EB;
+    margin-top: 1.5rem;
+    margin-bottom: 0.75rem;
+    font-weight: 600;
+}
+
+/* Article content */
+.markdown-text-container {
+    line-height: 1.8;
+    font-size: 1.05rem;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    color: #1f2937;
+}
+
+.markdown-text-container h1 {
+    font-size: 2.2rem;
+    margin-top: 2.5rem;
+    margin-bottom: 1.2rem;
+    border-bottom: 2px solid #e5e7eb;
+    padding-bottom: 0.5rem;
+}
+
+.markdown-text-container h2 {
+    font-size: 1.7rem;
+    margin-top: 2rem;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid #e5e7eb;
+    padding-bottom: 0.3rem;
+}
+
+.markdown-text-container h3 {
+    font-size: 1.4rem;
+    margin-top: 1.5rem;
+    margin-bottom: 0.75rem;
+}
+
+.markdown-text-container p {
+    margin-bottom: 1.2rem;
+}
+
+.markdown-text-container ul, 
+.markdown-text-container ol {
+    margin-bottom: 1.2rem;
+    margin-left: 1.8rem;
+}
+
+.markdown-text-container li {
+    margin-bottom: 0.6rem;
+}
+
+.markdown-text-container blockquote {
+    border-left: 4px solid #3B82F6;
+    padding: 0.8rem 1.2rem;
+    margin: 1.5rem 0;
+    background-color: #f3f4f6;
+    border-radius: 0 4px 4px 0;
+    font-style: italic;
+    color: #4b5563;
+}
+
+.markdown-text-container code {
+    background-color: #f3f4f6;
+    padding: 0.2rem 0.4rem;
+    border-radius: 4px;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 0.9em;
+    color: #2563EB;
+}
+
+.markdown-text-container pre {
+    background-color: #1e293b;
+    color: #e2e8f0;
+    padding: 1.2rem;
+    border-radius: 8px;
+    overflow-x: auto;
+    margin-bottom: 1.5rem;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 0.9em;
+}
+
+/* Source cards */
+.source-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1rem;
+}
+
+.source-card {
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 1.2rem;
+    margin-bottom: 1rem;
+    background-color: #f9fafb;
+    transition: all 0.3s ease;
+    height: 100%;
+}
+
+.source-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    border-color: #d1d5db;
+}
+
+.source-card a {
+    color: #2563EB;
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.source-card a:hover {
+    text-decoration: underline;
+}
+
+/* Topic buttons */
+div[data-testid="stButton"] > button {
+    width: 100%;
+    text-align: left;
+    background-color: #f8fafc;
+    border: 1px solid #e2e8f0;
+    padding: 0.9rem 1.2rem;
+    margin-bottom: 0.7rem;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+    font-weight: 500;
+    color: #1e3a8a;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+div[data-testid="stButton"] > button:hover {
+    background-color: #f1f5f9;
+    border-color: #cbd5e1;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+/* Progress bar */
+div[data-testid="stProgress"] > div > div {
+    background-color: #2563EB;
+    background-image: linear-gradient(45deg, rgba(255, 255, 255, 0.15) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, 0.15) 50%, rgba(255, 255, 255, 0.15) 75%, transparent 75%, transparent);
+    background-size: 1rem 1rem;
+    animation: progress-bar-stripes 1s linear infinite;
+}
+
+@keyframes progress-bar-stripes {
+    from { background-position: 1rem 0; }
+    to { background-position: 0 0; }
+}
+
+/* Expander styling */
+details {
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 0.7rem;
+    margin-bottom: 1.2rem;
+    background-color: #f9fafb;
+    transition: all 0.3s ease;
+}
+
+details:hover {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+summary {
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0.7rem;
+    color: #1e3a8a;
+}
+
+/* Text area styling */
+textarea {
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+
+/* Divider styling */
+hr {
+    margin: 2.5rem 0;
+    border: 0;
+    height: 1px;
+    background-image: linear-gradient(to right, rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0));
+}
+
+/* Status messages */
+div[data-testid="stAlert"] {
+    border-radius: 8px;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+}
+
+/* Welcome container */
+.welcome-container {
+    background-color: #f8fafc;
+    border-radius: 12px;
+    padding: 2.5rem;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    margin-bottom: 2rem;
+}
+
+.welcome-container h2 {
+    color: #0f2b5b;
+    margin-top: 0;
+    font-size: 1.8rem;
+    border-bottom: 2px solid #e5e7eb;
+    padding-bottom: 0.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.welcome-container h3 {
+    color: #1a4789;
+    margin-top: 1.8rem;
+    font-size: 1.4rem;
+}
+
+.welcome-container ul, 
+.welcome-container ol {
+    margin-left: 1.8rem;
+}
+
+.welcome-container li {
+    margin-bottom: 0.7rem;
+}
+
+/* Table of contents */
+.table-of-contents {
+    background-color: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.table-of-contents a {
+    color: #4b5563;
+    text-decoration: none;
+    display: block;
+    padding: 0.3rem 0;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+    border-radius: 4px;
+    padding-left: 0.5rem;
+}
+
+.table-of-contents a:hover {
+    color: #2563EB;
+    background-color: #f1f5f9;
+    padding-left: 0.7rem;
+}
+
+/* Improve sidebar appearance */
+.sidebar .sidebar-content {
+    padding: 1rem 0.5rem;
+}
+
+.sidebar .sidebar-content h1 {
+    font-size: 1.5rem;
+    padding-left: 0.5rem;
+}
+
+.sidebar .sidebar-content h2,
+.sidebar .sidebar-content h3 {
+    font-size: 1.2rem;
+    padding-left: 0.5rem;
+}
+
+/* Improve selectbox appearance */
+div[data-testid="stSelectbox"] {
+    margin-bottom: 1rem;
+}
+
+div[data-testid="stSelectbox"] > div > div {
+    background-color: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+}
+
+/* Improve text input appearance */
+div[data-testid="stTextInput"] > div > div > input {
+    background-color: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 0.5rem;
+}
+
+/* Improve button appearance */
+div[data-testid="stButton"] > button[kind="primary"] {
+    background-color: #2563EB;
+    color: white;
+    font-weight: 600;
+}
+
+div[data-testid="stButton"] > button[kind="primary"]:hover {
+    background-color: #1d4ed8;
+    border-color: #1e40af;
+}
+
+/* Add some animations */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.markdown-text-container {
+    animation: fadeIn 0.5s ease-in-out;
+}
+
+/* Improve code display */
+.markdown-text-container pre code {
+    color: #e2e8f0;
+    background-color: transparent;
+}
+
+/* Improve tables */
+.markdown-text-container table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1.5rem 0;
+}
+
+.markdown-text-container th {
+    background-color: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    padding: 0.75rem;
+    text-align: left;
+    font-weight: 600;
+}
+
+.markdown-text-container td {
+    border: 1px solid #e2e8f0;
+    padding: 0.75rem;
+}
+
+.markdown-text-container tr:nth-child(even) {
+    background-color: #f8fafc;
+}
+
+/* Improve images */
+.markdown-text-container img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    margin: 1.5rem 0;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}

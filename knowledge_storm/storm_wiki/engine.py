@@ -383,6 +383,16 @@ class STORMWikiRunner(Engine):
             self.args.output_dir, self.article_dir_name
         )
         os.makedirs(self.article_output_dir, exist_ok=True)
+        
+        # Check if we should use S3 storage
+        self.use_s3 = hasattr(self.args, 'use_s3') and self.args.use_s3
+        self.s3_bucket = getattr(self.args, 's3_bucket', None)
+        self.s3_region = getattr(self.args, 's3_region', None)
+        
+        if self.use_s3:
+            from ..s3_storage import S3Storage
+            self.s3_storage = S3Storage(bucket_name=self.s3_bucket, region=self.s3_region)
+            logging.info(f"S3 storage initialized with bucket: {self.s3_storage.bucket_name}")
 
         # research module
         information_table: StormInformationTable = None
