@@ -4,14 +4,18 @@
 # Make script exit on any error
 set -e
 
+source .env.aws
 
 # Test Tavily API directly
 echo "Testing Tavily API directly..."
-python /Users/yfzhu/Documents/R129XXX/CodeRepo/ValueStorm/test_tavily.py
+python ./test_tavily.py
 
 # Activate conda environment
 echo "Activating conda environment..."
 conda activate storm
+
+# Install knowledge_storm locally
+# pip install -e .
 
 # Run the script
 echo "Running STORM with Bedrock..."
