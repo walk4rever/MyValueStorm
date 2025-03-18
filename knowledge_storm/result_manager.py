@@ -48,188 +48,224 @@ class ResultManager:
         Get the directory path for a specific topic.
         
         Args:
-            topic (str): Research topic
+            topic (str): Research topic name
             
         Returns:
             str: Path to the topic directory
         """
-        # Format topic for directory name
-        topic_dir_name = topic.lower().replace(" ", "_").replace("/", "_")
-        return os.path.join(self.base_dir, topic_dir_name)
-    
-    def save_file(self, topic: str, filename: str, content: Union[str, bytes, dict]) -> str:
-        """
-        Save a file for a specific topic.
-        
-        Args:
-            topic (str): Research topic
-            filename (str): Name of the file
-            content (Union[str, bytes, dict]): Content to save
-            
-        Returns:
-            str: Path to the saved file
-        """
-        # Get the topic directory
-        topic_dir = self.get_topic_dir(topic)
-        
-        # Create the directory if it doesn't exist
-        os.makedirs(topic_dir, exist_ok=True)
-        
-        # Full path to the file
-        file_path = os.path.join(topic_dir, filename)
-        
-        # Save the file locally
-        if isinstance(content, dict):
-            with open(file_path, 'w', encoding='utf-8') as f:
-                json.dump(content, f, ensure_ascii=False, indent=2)
-        elif isinstance(content, bytes):
-            with open(file_path, 'wb') as f:
-                f.write(content)
-        else:
-            with open(file_path, 'w', encoding='utf-8') as f:
-                f.write(content)
-        
-        # Upload to S3 if enabled
-        if self.use_s3 and self.s3_storage:
-            s3_key = f"{os.path.basename(topic_dir)}/{filename}"
-            self.s3_storage.upload_file(file_path, s3_key)
-        
-        return file_path
-    
-    def load_file(self, topic: str, filename: str, as_json: bool = False) -> Union[str, bytes, dict, None]:
-        """
-        Load a file for a specific topic.
-        
-        Args:
-            topic (str): Research topic
-            filename (str): Name of the file
-            as_json (bool): Whether to parse the file as JSON
-            
-        Returns:
-            Union[str, bytes, dict, None]: File content or None if not found
-        """
-        # Get the topic directory
-        topic_dir = self.get_topic_dir(topic)
-        
-        # Full path to the file
-        file_path = os.path.join(topic_dir, filename)
-        
-        # If file doesn't exist locally but S3 is enabled, try to download it
-        if not os.path.exists(file_path) and self.use_s3 and self.s3_storage:
-            s3_key = f"{os.path.basename(topic_dir)}/{filename}"
-            if not self.s3_storage.download_file(s3_key, file_path):
-                logging.warning(f"Could not download file {s3_key} from S3")
-                return None
-        
-        # Return None if file doesn't exist
-        if not os.path.exists(file_path):
-            logging.warning(f"File {file_path} does not exist locally")
-            return None
-        
-        # Load the file
-        try:
-            if as_json:
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    return json.load(f)
-            else:
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    return f.read()
-        except Exception as e:
-            logging.error(f"Error loading file {file_path}: {str(e)}")
-            return None
-    
-    def save_results(self, topic: str, results: Dict[str, Any]) -> bool:
-        """
-        Save multiple result files for a topic.
-        
-        Args:
-            topic (str): Research topic
-            results (Dict[str, Any]): Dictionary of filename -> content
-            
-        Returns:
-            bool: True if successful, False otherwise
-        """
-        try:
-            for filename, content in results.items():
-                self.save_file(topic, filename, content)
-            return True
-        except Exception as e:
-            logging.error(f"Error saving results for topic {topic}: {str(e)}")
-            return False
-    
-    def upload_topic_results(self, topic: str) -> bool:
-        """
-        Upload all results for a topic to S3.
-        
-        Args:
-            topic (str): Research topic
-            
-        Returns:
-            bool: True if successful, False otherwise
-        """
-        if not self.use_s3 or not self.s3_storage:
-            logging.warning("S3 storage is not enabled")
-            return False
-        
-        topic_dir = self.get_topic_dir(topic)
-        if not os.path.exists(topic_dir):
-            logging.error(f"Topic directory {topic_dir} does not exist")
-            return False
-        
-        try:
-            s3_prefix = os.path.basename(os.path.normpath(topic_dir))
-            logging.info(f"Uploading directory {topic_dir} to S3 with prefix {s3_prefix}")
-            return self.s3_storage.upload_directory(topic_dir, s3_prefix)
-        except Exception as e:
-            logging.error(f"Error uploading topic results: {str(e)}")
-            raise e
-    
-    def download_topic_results(self, topic: str) -> bool:
-        """
-        Download all results for a topic from S3.
-        
-        Args:
-            topic (str): Research topic
-            
-        Returns:
-            bool: True if successful, False otherwise
-        """
-        if not self.use_s3 or not self.s3_storage:
-            logging.warning("S3 storage is not enabled")
-            return False
-        
-        topic_dir = self.get_topic_dir(topic)
-        os.makedirs(topic_dir, exist_ok=True)
-        
-        s3_prefix = os.path.basename(os.path.normpath(topic_dir))
-        return self.s3_storage.download_directory(s3_prefix, topic_dir)
+        # Sanitize topic name for file system
+        safe_topic = topic.replace("/", "_").replace("\\", "_")
+        return os.path.join(self.base_dir, safe_topic)
     
     def list_topics(self) -> List[str]:
         """
-        List all available topics.
+        List all available research topics.
         
         Returns:
             List[str]: List of topic names
         """
         topics = []
         
-        # List local topics
+        # Check local storage
         if os.path.exists(self.base_dir):
-            for item in os.listdir(self.base_dir):
-                if os.path.isdir(os.path.join(self.base_dir, item)):
-                    topics.append(item)
+            topics = [d for d in os.listdir(self.base_dir) 
+                     if os.path.isdir(os.path.join(self.base_dir, d))]
         
-        # List S3 topics if enabled
-        if self.use_s3 and self.s3_storage:
-            s3_keys = self.s3_storage.list_files()
-            for key in s3_keys:
-                parts = key.split('/')
-                if len(parts) > 1:
-                    topic = parts[0]
-                    if topic not in topics:
-                        topics.append(topic)
+        # Check S3 storage if enabled
+        if self.use_s3:
+            s3_topics = self.s3_storage.list_directories("")
+            topics.extend([t for t in s3_topics if t not in topics])
         
         return topics
+        
+    def save_metadata(self, topic: str, metadata: Dict[str, Any]) -> None:
+        """
+        Save metadata for a research topic.
+        
+        Args:
+            topic (str): Research topic name
+            metadata (Dict[str, Any]): Metadata to save
+        """
+        topic_dir = self.get_topic_dir(topic)
+        os.makedirs(topic_dir, exist_ok=True)
+        
+        metadata_path = os.path.join(topic_dir, "metadata.json")
+        
+        with open(metadata_path, 'w') as f:
+            json.dump(metadata, f, indent=2)
+        
+        if self.use_s3:
+            self.s3_storage.upload_file(metadata_path, f"{topic}/metadata.json")
+    
+    def get_metadata(self, topic: str) -> Dict[str, Any]:
+        """
+        Get metadata for a research topic.
+        
+        Args:
+            topic (str): Research topic name
+            
+        Returns:
+            Dict[str, Any]: Metadata for the topic
+        """
+        topic_dir = self.get_topic_dir(topic)
+        metadata_path = os.path.join(topic_dir, "metadata.json")
+        
+        if os.path.exists(metadata_path):
+            with open(metadata_path, 'r') as f:
+                return json.load(f)
+        elif self.use_s3:
+            try:
+                return json.loads(self.s3_storage.download_file(f"{topic}/metadata.json"))
+            except:
+                return {}
+        else:
+            return {}
+    
+    def get_article(self, topic: str) -> Dict[str, Any]:
+        """
+        Get article for a research topic.
+        
+        Args:
+            topic (str): Research topic name
+            
+        Returns:
+            Dict[str, Any]: Article data
+        """
+        topic_dir = self.get_topic_dir(topic)
+        article_path = os.path.join(topic_dir, "article.json")
+        
+        if os.path.exists(article_path):
+            with open(article_path, 'r') as f:
+                return json.load(f)
+        elif self.use_s3:
+            try:
+                return json.loads(self.s3_storage.download_file(f"{topic}/article.json"))
+            except:
+                return {}
+        else:
+            return {}
+    
+    def get_outline(self, topic: str) -> Dict[str, Any]:
+        """
+        Get outline for a research topic.
+        
+        Args:
+            topic (str): Research topic name
+            
+        Returns:
+            Dict[str, Any]: Outline data
+        """
+        topic_dir = self.get_topic_dir(topic)
+        outline_path = os.path.join(topic_dir, "outline.json")
+        
+        if os.path.exists(outline_path):
+            with open(outline_path, 'r') as f:
+                return json.load(f)
+        elif self.use_s3:
+            try:
+                return json.loads(self.s3_storage.download_file(f"{topic}/outline.json"))
+            except:
+                return {}
+        else:
+            return {}
+            
+    def save_result(self, topic: str, result_type: str, data: Union[Dict, List, str]) -> bool:
+        """
+        Save a result file for a topic.
+        
+        Args:
+            topic (str): Research topic
+            result_type (str): Type of result (e.g., 'outline', 'article')
+            data (Union[Dict, List, str]): Data to save
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            topic_dir = self.get_topic_dir(topic)
+            os.makedirs(topic_dir, exist_ok=True)
+            
+            # Determine file path and format
+            file_path = os.path.join(topic_dir, f"{result_type}")
+            if isinstance(data, (dict, list)):
+                file_path += ".json"
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    json.dump(data, f, ensure_ascii=False, indent=2)
+            else:
+                file_path += ".txt"
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    f.write(str(data))
+            
+            # Upload to S3 if enabled
+            if self.use_s3 and self.s3_storage:
+                s3_key = f"{topic.lower().replace(' ', '_').replace('/', '_')}/{result_type}"
+                s3_key += ".json" if isinstance(data, (dict, list)) else ".txt"
+                self.s3_storage.upload_file(file_path, s3_key)
+            
+            return True
+        
+        except Exception as e:
+            logging.error(f"Error saving result {result_type} for topic {topic}: {str(e)}")
+            return False
+    
+    def get_result(self, topic: str, result_type: str, as_json: bool = True) -> Union[Dict, List, str, None]:
+        """
+        Get a result file for a topic.
+        
+        Args:
+            topic (str): Research topic
+            result_type (str): Type of result (e.g., 'outline', 'article')
+            as_json (bool): Whether to parse as JSON
+            
+        Returns:
+            Union[Dict, List, str, None]: Result data or None if not found
+        """
+        try:
+            topic_dir = self.get_topic_dir(topic)
+            
+            # Try JSON file first
+            json_path = os.path.join(topic_dir, f"{result_type}.json")
+            if os.path.exists(json_path):
+                with open(json_path, 'r', encoding='utf-8') as f:
+                    return json.load(f) if as_json else f.read()
+            
+            # Try text file
+            txt_path = os.path.join(topic_dir, f"{result_type}.txt")
+            if os.path.exists(txt_path):
+                with open(txt_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                    if as_json:
+                        try:
+                            return json.loads(content)
+                        except:
+                            return content
+                    return content
+            
+            # Try S3 if enabled
+            if self.use_s3 and self.s3_storage:
+                s3_prefix = topic.lower().replace(" ", "_").replace("/", "_")
+                try:
+                    # Try JSON first
+                    content = self.s3_storage.download_file(f"{s3_prefix}/{result_type}.json")
+                    return json.loads(content) if as_json else content
+                except:
+                    try:
+                        # Try text file
+                        content = self.s3_storage.download_file(f"{s3_prefix}/{result_type}.txt")
+                        if as_json:
+                            try:
+                                return json.loads(content)
+                            except:
+                                return content
+                        return content
+                    except:
+                        return None
+            
+            return None
+        
+        except Exception as e:
+            logging.error(f"Error getting result {result_type} for topic {topic}: {str(e)}")
+            return None
     
     def delete_topic_results(self, topic: str, delete_local: bool = True, delete_s3: bool = True) -> bool:
         """

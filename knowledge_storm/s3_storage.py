@@ -1,221 +1,187 @@
 """
 S3 Storage module for MyValueStorm project.
-This module provides functionality to store and retrieve results in an AWS S3 bucket.
+This module provides functionality for storing and retrieving files from AWS S3.
 """
 
 import os
-import json
-import boto3
 import logging
-from pathlib import Path
+import boto3
 from botocore.exceptions import ClientError
+from typing import Optional, List, Union
 
 class S3Storage:
     """
-    Class for handling storage and retrieval of STORM results in an AWS S3 bucket.
+    Class for handling S3 storage operations.
     """
     
-    def __init__(self, bucket_name=None, region=None):
+    def __init__(self, 
+                 bucket_name: Optional[str] = None, 
+                 region: Optional[str] = None):
         """
-        Initialize the S3Storage class.
+        Initialize S3 storage.
         
         Args:
-            bucket_name (str, optional): Name of the S3 bucket to use. If None, will use 'mystorm-results' by default.
-            region (str, optional): AWS region to use. If None, will use the region from AWS_REGION env var or 'us-east-1'.
+            bucket_name (str, optional): S3 bucket name
+            region (str, optional): AWS region
         """
-        self.region = region or os.environ.get('AWS_REGION', 'us-east-1')
-        self.bucket_name = bucket_name or 'mystorm-results'
+        self.bucket_name = bucket_name or os.environ.get("S3_BUCKET", "mystorm-results")
+        self.region = region or os.environ.get("AWS_REGION", "us-east-1")
+        
+        # Initialize S3 client
         self.s3_client = boto3.client('s3', region_name=self.region)
         
-        # Ensure the bucket exists
+        # Ensure bucket exists
         self._ensure_bucket_exists()
     
-    def _ensure_bucket_exists(self):
+    def _ensure_bucket_exists(self) -> bool:
         """
-        Check if the bucket exists, and create it if it doesn't.
+        Ensure the S3 bucket exists, create if it doesn't.
+        
+        Returns:
+            bool: True if bucket exists or was created, False otherwise
         """
         try:
+            # Check if bucket exists
             self.s3_client.head_bucket(Bucket=self.bucket_name)
-            logging.info(f"Bucket {self.bucket_name} exists")
+            return True
         except ClientError as e:
-            error_code = e.response['Error']['Code']
+            error_code = e.response.get('Error', {}).get('Code')
+            
+            # If bucket doesn't exist, create it
             if error_code == '404':
-                logging.info(f"Bucket {self.bucket_name} does not exist. Creating...")
                 try:
+                    # Create bucket with appropriate configuration
                     if self.region == 'us-east-1':
-                        # Special case for us-east-1
                         self.s3_client.create_bucket(Bucket=self.bucket_name)
                     else:
+                        location = {'LocationConstraint': self.region}
                         self.s3_client.create_bucket(
                             Bucket=self.bucket_name,
-                            CreateBucketConfiguration={'LocationConstraint': self.region}
+                            CreateBucketConfiguration=location
                         )
-                    logging.info(f"Bucket {self.bucket_name} created successfully")
-                except ClientError as create_error:
-                    logging.error(f"Failed to create bucket: {str(create_error)}")
-                    raise
+                    logging.info(f"Created S3 bucket: {self.bucket_name}")
+                    return True
+                except Exception as create_error:
+                    logging.error(f"Failed to create S3 bucket: {str(create_error)}")
+                    return False
             else:
-                logging.error(f"Error checking bucket: {str(e)}")
-                raise
+                logging.error(f"Error accessing S3 bucket: {str(e)}")
+                return False
     
-    def upload_file(self, local_file_path, s3_key=None):
+    def upload_file(self, local_path: str, s3_key: str) -> bool:
         """
         Upload a file to S3.
         
         Args:
-            local_file_path (str): Path to the local file
-            s3_key (str, optional): S3 key to use. If None, will use the filename.
-        
+            local_path (str): Path to local file
+            s3_key (str): S3 object key
+            
         Returns:
             bool: True if successful, False otherwise
         """
-        if not os.path.exists(local_file_path):
-            logging.error(f"File {local_file_path} does not exist")
-            return False
-        
-        if s3_key is None:
-            s3_key = os.path.basename(local_file_path)
-        
         try:
-            logging.info(f"Uploading {local_file_path} to s3://{self.bucket_name}/{s3_key}")
-            self.s3_client.upload_file(local_file_path, self.bucket_name, s3_key)
-            logging.info(f"Uploaded {local_file_path} to s3://{self.bucket_name}/{s3_key}")
+            self.s3_client.upload_file(local_path, self.bucket_name, s3_key)
+            logging.info(f"Uploaded {local_path} to s3://{self.bucket_name}/{s3_key}")
             return True
-        except ClientError as e:
-            logging.error(f"Failed to upload {local_file_path}: {str(e)}")
-            raise e
+        except Exception as e:
+            logging.error(f"Error uploading file to S3: {str(e)}")
+            return False
     
-    def download_file(self, s3_key, local_file_path):
+    def download_file(self, s3_key: str, local_path: Optional[str] = None) -> Union[str, bool]:
         """
         Download a file from S3.
         
         Args:
-            s3_key (str): S3 key of the file
-            local_file_path (str): Path to save the file locally
-        
+            s3_key (str): S3 object key
+            local_path (str, optional): Path to save file locally
+            
         Returns:
-            bool: True if successful, False otherwise
+            Union[str, bool]: File content as string if local_path is None, 
+                             True if downloaded to local_path, False if failed
         """
         try:
-            # Ensure the directory exists
-            os.makedirs(os.path.dirname(local_file_path), exist_ok=True)
-            
-            self.s3_client.download_file(self.bucket_name, s3_key, local_file_path)
-            logging.info(f"Downloaded s3://{self.bucket_name}/{s3_key} to {local_file_path}")
-            return True
-        except ClientError as e:
-            logging.error(f"Failed to download {s3_key}: {str(e)}")
-            return False
-    
-    def upload_directory(self, local_dir_path, s3_prefix=None):
-        """
-        Upload an entire directory to S3.
-        
-        Args:
-            local_dir_path (str): Path to the local directory
-            s3_prefix (str, optional): S3 prefix to use. If None, will use the directory name.
-        
-        Returns:
-            bool: True if all files were uploaded successfully, False otherwise
-        """
-        if not os.path.isdir(local_dir_path):
-            logging.error(f"Directory {local_dir_path} does not exist")
-            return False
-        
-        if s3_prefix is None:
-            s3_prefix = os.path.basename(os.path.normpath(local_dir_path))
-        
-        all_successful = True
-        for root, _, files in os.walk(local_dir_path):
-            for file in files:
-                local_file_path = os.path.join(root, file)
-                # Calculate the relative path from the base directory
-                relative_path = os.path.relpath(local_file_path, local_dir_path)
-                s3_key = os.path.join(s3_prefix, relative_path).replace('\\', '/')
+            if local_path:
+                # Ensure directory exists
+                os.makedirs(os.path.dirname(os.path.abspath(local_path)), exist_ok=True)
                 
-                if not self.upload_file(local_file_path, s3_key):
-                    all_successful = False
-        
-        return all_successful
+                # Download to file
+                self.s3_client.download_file(self.bucket_name, s3_key, local_path)
+                logging.info(f"Downloaded s3://{self.bucket_name}/{s3_key} to {local_path}")
+                return True
+            else:
+                # Download to memory
+                response = self.s3_client.get_object(Bucket=self.bucket_name, Key=s3_key)
+                return response['Body'].read().decode('utf-8')
+        except Exception as e:
+            logging.error(f"Error downloading file from S3: {str(e)}")
+            return False if local_path else ""
     
-    def download_directory(self, s3_prefix, local_dir_path):
+    def list_files(self, prefix: str = "") -> List[str]:
         """
-        Download an entire directory from S3.
+        List files in S3 bucket with given prefix.
         
         Args:
-            s3_prefix (str): S3 prefix of the directory
-            local_dir_path (str): Path to save the directory locally
-        
+            prefix (str): S3 key prefix
+            
         Returns:
-            bool: True if all files were downloaded successfully, False otherwise
+            List[str]: List of S3 keys
         """
         try:
-            # Ensure the directory exists
-            os.makedirs(local_dir_path, exist_ok=True)
+            response = self.s3_client.list_objects_v2(Bucket=self.bucket_name, Prefix=prefix)
             
-            # List all objects with the given prefix
-            paginator = self.s3_client.get_paginator('list_objects_v2')
-            pages = paginator.paginate(Bucket=self.bucket_name, Prefix=s3_prefix)
-            
-            all_successful = True
-            for page in pages:
-                if 'Contents' not in page:
-                    continue
-                
-                for obj in page['Contents']:
-                    s3_key = obj['Key']
-                    # Calculate the relative path from the prefix
-                    if s3_key == s3_prefix:
-                        continue  # Skip the prefix itself if it's listed
-                    
-                    relative_path = s3_key[len(s3_prefix):].lstrip('/')
-                    local_file_path = os.path.join(local_dir_path, relative_path)
-                    
-                    # Ensure the directory exists
-                    os.makedirs(os.path.dirname(local_file_path), exist_ok=True)
-                    
-                    if not self.download_file(s3_key, local_file_path):
-                        all_successful = False
-            
-            return all_successful
-        except ClientError as e:
-            logging.error(f"Failed to download directory {s3_prefix}: {str(e)}")
-            return False
-    
-    def list_files(self, s3_prefix=""):
-        """
-        List all files in the bucket with the given prefix.
-        
-        Args:
-            s3_prefix (str, optional): S3 prefix to list. Default is empty string (list all).
-        
-        Returns:
-            list: List of S3 keys
-        """
-        try:
-            paginator = self.s3_client.get_paginator('list_objects_v2')
-            pages = paginator.paginate(Bucket=self.bucket_name, Prefix=s3_prefix)
-            
-            result = []
-            for page in pages:
-                if 'Contents' not in page:
-                    continue
-                
-                for obj in page['Contents']:
-                    result.append(obj['Key'])
-            
-            return result
-        except ClientError as e:
-            logging.error(f"Failed to list files with prefix {s3_prefix}: {str(e)}")
+            if 'Contents' in response:
+                return [item['Key'] for item in response['Contents']]
+            return []
+        except Exception as e:
+            logging.error(f"Error listing files in S3: {str(e)}")
             return []
     
-    def delete_file(self, s3_key):
+    def list_directories(self, prefix: str = "") -> List[str]:
+        """
+        List directories (common prefixes) in S3 bucket.
+        
+        Args:
+            prefix (str): S3 key prefix
+            
+        Returns:
+            List[str]: List of directory names
+        """
+        try:
+            # Add trailing slash if not present and not empty
+            if prefix and not prefix.endswith('/'):
+                prefix += '/'
+                
+            response = self.s3_client.list_objects_v2(
+                Bucket=self.bucket_name,
+                Prefix=prefix,
+                Delimiter='/'
+            )
+            
+            directories = []
+            
+            # Get common prefixes (directories)
+            if 'CommonPrefixes' in response:
+                for obj in response['CommonPrefixes']:
+                    # Remove trailing slash and prefix
+                    dir_name = obj['Prefix']
+                    if dir_name.endswith('/'):
+                        dir_name = dir_name[:-1]
+                    if prefix and dir_name.startswith(prefix):
+                        dir_name = dir_name[len(prefix):]
+                    directories.append(dir_name)
+            
+            return directories
+        except Exception as e:
+            logging.error(f"Error listing directories in S3: {str(e)}")
+            return []
+    
+    def delete_file(self, s3_key: str) -> bool:
         """
         Delete a file from S3.
         
         Args:
-            s3_key (str): S3 key of the file
-        
+            s3_key (str): S3 object key
+            
         Returns:
             bool: True if successful, False otherwise
         """
@@ -223,72 +189,48 @@ class S3Storage:
             self.s3_client.delete_object(Bucket=self.bucket_name, Key=s3_key)
             logging.info(f"Deleted s3://{self.bucket_name}/{s3_key}")
             return True
-        except ClientError as e:
-            logging.error(f"Failed to delete {s3_key}: {str(e)}")
+        except Exception as e:
+            logging.error(f"Error deleting file from S3: {str(e)}")
             return False
     
-    def delete_directory(self, s3_prefix):
+    def delete_directory(self, prefix: str) -> bool:
         """
-        Delete an entire directory from S3.
+        Delete all files with given prefix from S3.
         
         Args:
-            s3_prefix (str): S3 prefix of the directory
-        
+            prefix (str): S3 key prefix
+            
         Returns:
-            bool: True if all files were deleted successfully, False otherwise
+            bool: True if successful, False otherwise
         """
         try:
-            # List all objects with the given prefix
-            paginator = self.s3_client.get_paginator('list_objects_v2')
-            pages = paginator.paginate(Bucket=self.bucket_name, Prefix=s3_prefix)
-            
-            all_successful = True
-            for page in pages:
-                if 'Contents' not in page:
-                    continue
+            # Add trailing slash if not present and not empty
+            if prefix and not prefix.endswith('/'):
+                prefix += '/'
                 
-                objects_to_delete = [{'Key': obj['Key']} for obj in page['Contents']]
-                if objects_to_delete:
-                    self.s3_client.delete_objects(
-                        Bucket=self.bucket_name,
-                        Delete={'Objects': objects_to_delete}
-                    )
+            # List all objects with the prefix
+            objects_to_delete = self.list_files(prefix)
             
-            return all_successful
-        except ClientError as e:
-            logging.error(f"Failed to delete directory {s3_prefix}: {str(e)}")
+            if not objects_to_delete:
+                return True
+                
+            # Delete objects in batches of 1000 (S3 limit)
+            batch_size = 1000
+            for i in range(0, len(objects_to_delete), batch_size):
+                batch = objects_to_delete[i:i+batch_size]
+                
+                delete_dict = {
+                    'Objects': [{'Key': key} for key in batch],
+                    'Quiet': True
+                }
+                
+                self.s3_client.delete_objects(
+                    Bucket=self.bucket_name,
+                    Delete=delete_dict
+                )
+            
+            logging.info(f"Deleted {len(objects_to_delete)} objects with prefix {prefix}")
+            return True
+        except Exception as e:
+            logging.error(f"Error deleting directory from S3: {str(e)}")
             return False
-    
-    def get_s3_url(self, s3_key):
-        """
-        Get the S3 URL for a file.
-        
-        Args:
-            s3_key (str): S3 key of the file
-        
-        Returns:
-            str: S3 URL
-        """
-        return f"s3://{self.bucket_name}/{s3_key}"
-    
-    def get_presigned_url(self, s3_key, expiration=3600):
-        """
-        Generate a presigned URL for a file.
-        
-        Args:
-            s3_key (str): S3 key of the file
-            expiration (int, optional): URL expiration time in seconds. Default is 1 hour.
-        
-        Returns:
-            str: Presigned URL or None if failed
-        """
-        try:
-            url = self.s3_client.generate_presigned_url(
-                'get_object',
-                Params={'Bucket': self.bucket_name, 'Key': s3_key},
-                ExpiresIn=expiration
-            )
-            return url
-        except ClientError as e:
-            logging.error(f"Failed to generate presigned URL for {s3_key}: {str(e)}")
-            return None
